@@ -1,0 +1,142 @@
+#+title: Double Pendulum Simulation with ChatGPT
+#+author: J. Dylan White
+#+date: <2022-12-23 Fri>
+#+STARTUP: latexpreview
+
+* Introduction
+
+I recently explored [[https://chat.openai.com/][ChatGPT's]] ability to write a Python script given a prompt. I told it to "write a Python script that simluates a double pendulum and plots the position of the pendulum over time". It did a pretty great job! It provided parameters such as the length and masses of the two pendulums, then came up with a differential equation to solve using =scipy.integrate.odeint=, which I'd never seen before. It even provided detailed comments for each step. I only noticed two problems with the script:
+
+1) It created a time array using =numpy.linspace(0,10,1001)= and stated that the time step was 0.001 seconds, when that actually works out to be a timestep of .01 seconds.
+2) It provided a plot, but it didn't provide a proper animation for the simulation. The result instead was the position of the two pendulums at *all* time steps.
+
+Neither of these were game changers, and I'm still very impressed with the results. This tells me that ChatGPT is a pretty valuable tool for learning how to code something up or to learn new tools to do so, but it's probably not wise to assume you have a final solution with the output you receive. Still though, I didn't have to do much at all to push it to where I wanted it to go. And maybe it would have even plotted the animation properly had I been more specific.
+
+I also had it derive the equations of motion used to make the simlulation, and it described it quite nicely. It even formatted the math parts with LaTeX syntax!
+
+Check out ChatGPT's derivation and code in the following sections. I've only corrected the two issues I pointed out above and added lines to the plot to show the rods for the pendulum. Aside from that, everything below is directly from ChatGPT.
+
+* Derivation of the Equations of Motion
+
+Consider the first mass in the pendulum, which is attached to the pivot point by a rod of length $l_1$ and mass $m_1$.
+
+The forces acting on this mass are gravity and the tension in the rod. The gravitational force is given by $F_g = -m_1g$, where $g$ is the acceleration due to gravity.
+
+The tension in the rod is given by the product of the rod's linear density and the local acceleration of the mass. Since the rod is in equilibrium, the tension at the pivot point is equal and opposite to the tension at the end of the rod, so we can write the tension as $T = -m_1\frac{d^2y_1}{dt^2}$, where $y_1$ is the vertical position of the mass.
+
+The sum of the forces acting on the mass is given by Newton's second law, $F_{net} = ma$, where $a$ is the acceleration of the mass. Therefore, we can write the equation of motion for the first mass as $-m_1g - m_1\frac{d^2y_1}{dt^2} = m_1\frac{d^2y_1}{dt^2}$.
+
+Since $y_1 = -l_1\cos\theta_1$, where $\theta_1$ is the angle of the rod with respect to the vertical, we can rewrite the equation of motion as $-m_1g - m_1l_1\frac{d^2\theta_1}{dt^2} = m_1l_1\frac{d^2\theta_1}{dt^2}$.
+
+Solving for $\frac{d^2\theta_1}{dt^2}$, we get $\frac{d^2\theta_1}{dt^2} = -\frac{g}{l_1}\sin\theta_1$. This is the equation of motion for the first mass in the double pendulum.
+
+We can derive the equation of motion for the second mass in a similar way. The forces acting on this mass are gravity, the tension in the first rod, and the tension in the second rod.
+
+The gravitational force is given by $F_g = -m_2g$. The tension in the first rod is given by $T_1 = -m_2\frac{d^2y_2}{dt^2}$, where $y_2$ is the vertical position of the mass. The tension in the second rod is given by $T_2 = -m_2l_2\frac{d^2\theta_2}{dt^2}$, where $l_2$ is the length of the second rod and $\theta_2$ is the angle of the second rod with respect to the vertical.
+
+The sum of the forces acting on the mass is given by Newton's second law, so we can write the equation of motion for the second mass as $-m_2g - m_2\frac{d^2y_2}{dt^2} - m_2l_2\frac{d^2\theta_2}{dt^2} = m_2\frac{d^2y_2}{dt^2}$.
+
+Since $y_2 = -l_1\cos\theta_1 - l_2\cos\theta_2$, where $\theta_1$ is the angle of the first rod with respect to the vertical and $\theta_2$ is the angle of the second rod with respect to the first rod, we can rewrite the equation of motion as $-m_2g - m_2l_1\frac{d^2\theta_1}{dt^2} - m_2l_2\frac{d^2\theta_2}{dt^2} - m_2l_2\frac{d\theta_1}{dt}\frac{d\theta_2}{dt} = m_2l_1\frac{d^2\theta_1}{dt^2}$.
+
+Solving for $\frac{d^2\theta_2}{dt^2}$, we get $\frac{d^2\theta_2}{dt^2} = \frac{g}{l_2}\left(\sin\theta_1 + \frac{l_1}{l_2}\sin\theta_2 - \frac{l_1}{l_2}\sin\left(\theta_1 - \theta_2\right)\right)$. This is the equation of motion for the second mass in the double pendulum.
+
+We can combine these two equations to obtain the equations of motion for the double pendulum:
+
+$$
+\begin{aligned}
+\frac{d^2\theta_1}{dt^2} &= -\frac{g}{l_1}\sin\theta_1 \
+\frac{d^2\theta_2}{dt^2} &= \frac{g}{l_2}\left(\sin\theta_1 + \frac{l_1}{l_2}\sin\theta_2 - \frac{l_1}{l_2}\sin\left(\theta_1 - \theta_2\right)\right)
+\end{aligned}
+$$
+
+These are the equations of motion for a double pendulum.
+
+* Python Code to Simulate 
+
+#+begin_src python :session py :tangle ./double-pendulum.py
+
+  # Import modules
+  import numpy as np
+  from scipy.integrate import odeint
+  import matplotlib.pyplot as plt
+
+  # Define the gravitational constant
+  g = 9.81
+
+  # Define the initial conditions
+  # theta1 and theta2 are the initial angles (in radians)
+  # w1 and w2 are the initial angular velocities (in radians/s)
+  theta1 = 3.14
+  theta2 = 3.10
+  w1 = 0.0
+  w2 = 0.0
+
+  # Define the system of equations for the double pendulum
+  # y is a vector containing theta1, theta2, w1, and w2
+  # dydt is a vector containing the derivatives of these quantities
+  def pendulum_equations(y, t, l1, l2, m1, m2):
+      theta1, theta2, w1, w2 = y
+      dydt = [w1, w2,
+              -g * (2 * m1 + m2) * np.sin(theta1) - m2 * g * np.sin(theta1 - 2 * theta2) - 2 * np.sin(theta1 - theta2) * m2 * (w2**2 * l2 + w1**2 * l1 * np.cos(theta1 - theta2)),
+              m2 * g * np.sin(theta1 - 2 * theta2) + 2 * np.sin(theta1 - theta2) * (w1**2 * l1 * (m1 + m2) + g * (m1 + m2) * np.cos(theta1) + w2**2 * l2 * m2 * np.cos(theta1 - theta2))]
+      return dydt
+
+  # Set the length and mass of the two pendulum rods
+  l1 = 1.0
+  l2 = 1.0
+  m1 = 1.0
+  m2 = 1.0
+
+  # Define the time points at which to solve the equations
+  # Here we will use a time step of 0.01 s
+  t = np.linspace(0, 10, 1001)
+
+  # Solve the equations of motion for the double pendulum
+  y = odeint(pendulum_equations, [theta1, theta2, w1, w2], t, args=(l1, l2, m1, m2))
+
+  # Unpack the solution
+  theta1, theta2, w1, w2 = y.T
+
+  # Calculate the x and y positions of the two masses
+  x1 = l1 * np.sin(theta1)
+  y1 = -l1 * np.cos(theta1)
+  x2 = x1 + l2 * np.sin(theta2)
+  y2 = y1 - l2 * np.cos(theta2)
+
+  # Create a figure
+  fig, ax = plt.subplots(figsize=(5,5))
+
+  # Loop through times
+  for i in range(0,len(t),1):
+
+      # Set the plot axis
+      timeString = "{:.2f} seconds".format(t[i])
+      ax.set_title("Pendulum locations at "+timeString)
+
+      # Set the limits of the plot
+      ax.set_xlim(-l1 - l2 - 0.1, l1 + l2 + 0.1)
+      ax.set_ylim(-l1 - l2 - 0.1, l1 + l2 + 0.1)
+
+      # Plot the positions of the two masses and a line for the rods
+      ax.plot([0,x1[i]],[0,y1[i]], color="red", linewidth=1)
+      ax.plot([x1[i],x2[i]],[y1[i],y2[i]], color="blue", linewidth=1)
+      ax.plot(x1[i], y1[i], 'o-', color='red', markersize=10, linewidth=3, label="$m_1$")
+      ax.plot(x2[i], y2[i], 'o-', color='blue', markersize=10, linewidth=3, label="$m_2$")
+
+      # Add the plot legend
+      ax.legend()
+
+      # Pause the plot for a moment
+      plt.pause(0.001)
+
+      # Clear the plot to update the results
+      if i != len(t)-1:
+          ax.clear()
+
+  # Show the plot
+  plt.show()
+
+#+end_src
+
+#+RESULTS:
+: None
